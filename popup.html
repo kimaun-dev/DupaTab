@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DupaTab</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <div class="brand">
+        <img class="brand-logo" src="icons/logo-popup.png" alt="" width="40" height="40">
+        <div class="brand-copy">
+          <h1><span class="brand-dupa">Dupa</span><span class="brand-tab">Tab</span></h1>
+          <p class="subtitle">Find duplicates. You decide what closes.</p>
+        </div>
+      </div>
+      <button id="refreshButton" class="button button-secondary" type="button">Refresh / Scan Again</button>
+    </header>
+
+    <section class="stats" aria-label="Tab statistics">
+      <div class="stat"><span>Total tabs</span><strong id="totalTabs">0</strong></div>
+      <div class="stat"><span>Duplicate groups</span><strong id="duplicateGroups">0</strong></div>
+      <div class="stat"><span>Duplicate tabs</span><strong id="duplicateTabs">0</strong></div>
+      <div class="stat"><span>Selected tabs</span><strong id="selectedTabs">0</strong></div>
+    </section>
+
+    <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+    <section id="globalControls" class="global-controls" aria-label="Selection controls">
+      <button id="selectAllButton" class="button button-secondary" type="button">Select All Duplicates</button>
+      <button id="clearSelectionButton" class="button button-secondary" type="button">Clear Selection</button>
+    </section>
+
+    <section id="groupsContainer" class="groups" aria-label="Duplicate tab groups"></section>
+
+    <section id="emptyState" class="empty-state" hidden>
+      <strong>No duplicate tabs found.</strong>
+      <span>Open duplicate pages, then scan again.</span>
+    </section>
+
+    <footer id="closeBar" class="close-bar">
+      <button id="closeSelectedButton" class="button button-danger" type="button" disabled>
+        Close Selected Tabs (0)
+      </button>
+      <p>Tabs close only after you press this button and confirm.</p>
+    </footer>
+  </main>
+
+  <dialog id="confirmDialog" class="modal">
+    <form method="dialog" class="modal-card">
+      <h2 id="dialogTitle">Confirm</h2>
+      <p id="dialogMessage"></p>
+      <div class="modal-actions">
+        <button id="dialogCancelButton" class="button button-secondary" value="cancel" type="submit">Cancel</button>
+        <button id="dialogConfirmButton" class="button button-danger" value="confirm" type="submit">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="popup.js"></script>
+</body>
+</html>
