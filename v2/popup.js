@@ -350,16 +350,18 @@ function openDialog(title, message, confirmLabel, type, onConfirm) {
   elements.dialogTitle.textContent = title;
   elements.dialogMessage.textContent = message;
   elements.dialogConfirmButton.textContent = confirmLabel;
-  elements.dialogConfirmButton.className = type === "danger" ? "danger" : "";
-  elements.confirmDialog.classList.remove("hidden");
-  elements.dialogConfirmButton.focus();
+  elements.dialogConfirmButton.className = type === "danger" ? "button button-danger" : "button button-secondary";
+  // ใช้ native showModal() ให้ dialog แสดงอย่างถูกต้อง (มี backdrop + focus trap)
+  elements.confirmDialog.showModal();
   // เก็บ callback
   pendingAction = onConfirm;
 }
 
 /** ปิด dialog */
 function closeDialog() {
-  elements.confirmDialog.classList.add("hidden");
+  if (elements.confirmDialog.open) {
+    elements.confirmDialog.close();
+  }
   pendingAction = null;
 }
 
@@ -449,11 +451,16 @@ elements.dialogConfirmButton.addEventListener("click", () => {
   }
 });
 
-// Escape = ปิด dialog
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !elements.confirmDialog.classList.contains("hidden")) {
-    closeDialog();
-  }
+// Escape = ปิด dialog (showModal() ปิดเองด้วย backdrop/Escape แต่ reset pendingAction ด้วย)
+elements.confirmDialog.addEventListener("cancel", (e) => {
+  // user กด Escape หรือคลิก backdrop → preventDefault ไม่ให้ close อัตโนมัติ แล้วเราจัดการเอง
+  e.preventDefault();
+  closeDialog();
+});
+
+// dialog ถูก close ด้วยวิธีอื่น (เช่น close() จาก confirm) → reset pendingAction
+elements.confirmDialog.addEventListener("close", () => {
+  pendingAction = null;
 });
 
 // ---------- Init ----------
