@@ -1,0 +1,12 @@
+{
+  "name": "dupatab",
+  "version": "2.0.0",
+  "description": "Chrome extension to find and close duplicate tabs",
+  "private": true,
+  "scripts": {
+    "test": "node tests/utils.test.js",
+    "check": "node --check v2/utils/utils.js && node --check v2/background.js && node --check v2/popup.js"
+  },
+  "devDependencies": {},
+  "license": "MIT"
+}
