@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DupaTab v3</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <div class="brand">
+        <img class="brand-logo" src="icons/logo-popup.png" alt="" width="40" height="40">
+        <div class="brand-copy">
+          <h1><span class="brand-dupa">Dupa</span><span class="brand-tab">Tab</span> <span class="version-mark">v3</span></h1>
+          <p class="subtitle">Duplicate cleaner + website tab groups</p>
+        </div>
+      </div>
+    </header>
+
+    <nav class="mode-tabs" aria-label="DupaTab tools">
+      <button id="modeDuplicates" class="mode-tab active" type="button">Duplicates</button>
+      <button id="modeGroups" class="mode-tab" type="button">Group by Website</button>
+    </nav>
+
+    <section id="duplicatesPanel" class="tool-panel">
+      <div class="panel-toolbar">
+        <div>
+          <strong>Duplicate Tabs</strong>
+          <span>Exact URL matching. Nothing closes automatically.</span>
+        </div>
+        <button id="refreshButton" class="button button-secondary" type="button">Refresh / Scan Again</button>
+      </div>
+
+      <section class="stats" aria-label="Tab statistics">
+        <div class="stat"><span>Total tabs</span><strong id="totalTabs">0</strong></div>
+        <div class="stat"><span>Duplicate groups</span><strong id="duplicateGroups">0</strong></div>
+        <div class="stat"><span>Duplicate tabs</span><strong id="duplicateTabs">0</strong></div>
+        <div class="stat"><span>Selected tabs</span><strong id="selectedTabs">0</strong></div>
+      </section>
+
+      <div id="statusMessage" class="status" role="status" aria-live="polite"></div>
+
+      <section id="globalControls" class="global-controls" aria-label="Selection controls">
+        <button id="selectAllButton" class="button button-secondary" type="button">Select All Duplicates</button>
+        <button id="clearSelectionButton" class="button button-secondary" type="button">Clear Selection</button>
+      </section>
+
+      <section id="groupsContainer" class="groups" aria-label="Duplicate tab groups"></section>
+
+      <section id="emptyState" class="empty-state" hidden>
+        <strong>No duplicate tabs found.</strong>
+        <span>Open duplicate pages, then scan again.</span>
+      </section>
+
+      <footer id="closeBar" class="close-bar">
+        <button id="closeSelectedButton" class="button button-danger" type="button" disabled>
+          Close Selected Tabs (0)
+        </button>
+        <p>Tabs close only after you press this button and confirm.</p>
+      </footer>
+    </section>
+
+    <section id="groupsPanel" class="tool-panel" hidden>
+      <div class="panel-toolbar">
+        <div>
+          <strong>MGroup</strong>
+          <span>Group tabs by website/domain. This feature never closes tabs.</span>
+        </div>
+        <button id="mgRefreshBtn" class="button button-secondary" type="button">Refresh</button>
+      </div>
+
+      <section class="stats mg-stats" aria-label="Grouping statistics">
+        <div class="stat"><span>Tabs in window</span><strong id="mgTabCount">0</strong></div>
+        <div class="stat"><span>Websites</span><strong id="mgSiteCount">0</strong></div>
+        <div class="stat"><span>Groups ready</span><strong id="mgGroupableCount">0</strong></div>
+      </section>
+
+      <div class="mg-settings">
+        <label class="mg-setting mg-primary-setting">
+          <span>
+            <strong>Auto Group New Tabs</strong>
+            <small>Put new tabs into the correct website group automatically.</small>
+          </span>
+          <span class="switch-wrap">
+            <input id="mgAutoGroupEnabled" type="checkbox">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </span>
+        </label>
+        <div class="mg-auto-state">Auto Group: <strong id="mgAutoGroupState">Off</strong></div>
+
+        <label class="mg-setting compact-setting">
+          <input id="mgIncludeSingle" type="checkbox">
+          <span>Include websites with only 1 tab</span>
+        </label>
+        <label class="mg-setting compact-setting">
+          <input id="mgIncludePinned" type="checkbox">
+          <span>Include pinned tabs</span>
+        </label>
+        <label class="mg-setting compact-setting">
+          <input id="mgCollapseGroups" type="checkbox">
+          <span>Collapse groups after grouping</span>
+        </label>
+      </div>
+
+      <div id="mgStatus" class="status" role="status" aria-live="polite"></div>
+      <section id="mgPreview" class="mg-preview" aria-label="Website groups preview"></section>
+
+      <footer class="close-bar mg-action-bar">
+        <button id="mgGroupBtn" class="button button-primary" type="button" disabled>Group Tabs by Website</button>
+        <p>This action only creates Chrome tab groups. It never closes tabs.</p>
+      </footer>
+    </section>
+  </main>
+
+  <dialog id="confirmDialog" class="modal">
+    <form method="dialog" class="modal-card">
+      <h2 id="dialogTitle">Confirm</h2>
+      <p id="dialogMessage"></p>
+      <div class="modal-actions">
+        <button id="dialogCancelButton" class="button button-secondary" type="button">Cancel</button>
+        <button id="dialogConfirmButton" class="button button-danger" type="button">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="utils/utils.js"></script>
+  <script src="popup.js"></script>
+  <script src="mgroup.js"></script>
+</body>
+</html>
