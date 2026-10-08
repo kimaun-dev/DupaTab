@@ -90,6 +90,33 @@ function escapeHtml(str) {
 }
 
 /**
+ * เลือกแท็บที่ควร "เก็บไว้" (ไม่ถูกเลือกโดย default)
+ * ลำดับความสำคัญ: pinned → active → เก่าที่สุด (oldest)
+ * ตรงกับ v1 chooseKeepTab
+ *
+ * @param {chrome.tabs.Tab[]} tabs - tabs ในกลุ่ม
+ * @returns {chrome.tabs.Tab|undefined}
+ */
+function chooseKeepTab(tabs) {
+  if (!tabs || tabs.length === 0) return undefined;
+
+  // 1. pinned สำคัญสุด (active pinned ก่อน, ไม่งั้น pinned ที่เก่าสุด)
+  const pinnedTabs = tabs.filter((t) => t.pinned);
+  if (pinnedTabs.length > 0) {
+    const activePinned = pinnedTabs.find((t) => t.active);
+    if (activePinned) return activePinned;
+    return [...pinnedTabs].sort(compareByTime)[0];
+  }
+
+  // 2. active tab
+  const activeTab = tabs.find((t) => t.active);
+  if (activeTab) return activeTab;
+
+  // 3. fallback: แท็บที่เปิดก่อน (oldest)
+  return [...tabs].sort(compareByTime)[0];
+}
+
+/**
  * เปรียบเทียบเวลา — active tab มาก่อน, จากนั้น tab ที่เปิดก่อน (lastAccessed ต่ำกว่า) มาก่อน
  * @param {chrome.tabs.Tab} a
  * @param {chrome.tabs.Tab} b
@@ -105,5 +132,5 @@ function compareByTime(a, b) {
 
 // ---------- Export (ทำงานทั้งใน module และ non-module) ----------
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { urlKey, findDuplicates, countDuplicates, formatDuration, escapeHtml, compareByTime };
+  module.exports = { urlKey, findDuplicates, countDuplicates, formatDuration, escapeHtml, compareByTime, chooseKeepTab };
 }

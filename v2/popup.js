@@ -120,6 +120,10 @@ function buildGroup(group) {
   groupEl.className = "group";
   groupEl.dataset.groupId = group.key;
 
+  // เลือกแท็บที่ควร "เก็บไว้" (ไม่ถูกเลือกโดย default) — ตรงกับ v1
+  const keepTab = chooseKeepTab(group.tabs);
+  const keepTabId = keepTab ? String(keepTab.id) : null;
+
   // หัวกลุ่ม: checkbox + หัวข้อ + จำนวน
   const header = document.createElement("div");
   header.className = "group-header";
@@ -151,11 +155,18 @@ function buildGroup(group) {
     tabEl.dataset.tabId = String(tab.id);
     tabEl.dataset.groupId = group.key;
 
+    const isKeepTab = String(tab.id) === keepTabId;
+
     const rowCheckbox = document.createElement("input");
     rowCheckbox.type = "checkbox";
     rowCheckbox.className = "row-checkbox";
     rowCheckbox.value = String(tab.id);
+    rowCheckbox.checked = !isKeepTab; // keep tab ไม่ถูกเลือกโดย default
     rowCheckbox.setAttribute("aria-label", `Select tab: ${tab.title}`);
+
+    // เก็บ selection: เลือกทุกแท็บยกเว้น keep tab
+    if (!isKeepTab) selectedTabIds.add(tab.id);
+    else selectedTabIds.delete(tab.id);
 
     const favicon = document.createElement("img");
     favicon.className = "favicon";
@@ -191,6 +202,7 @@ function buildGroup(group) {
  */
 function renderGroups() {
   elements.groupsContainer.innerHTML = "";
+  selectedTabIds.clear(); // รีเซ็ต selection ทุกครั้งที่ render ใหม่
 
   if (!duplicateGroups.length) {
     elements.emptyState.classList.remove("hidden");
@@ -351,14 +363,20 @@ function closeDialog() {
 
 // ---------- Global actions ----------
 function selectAll() {
+  // เลือกทุกแท็บ ยกเว้น keep tab (ตรงตาม v1)
   for (const group of duplicateGroups) {
-    for (const t of group.tabs) selectedTabIds.add(t.id);
+    const keep = chooseKeepTab(group.tabs);
+    for (const t of group.tabs) {
+      if (keep && t.id === keep.id) continue;
+      selectedTabIds.add(t.id);
+    }
   }
-  setAllCheckboxes("all");
-  // sync row checkboxes
+  // sync checkbox: row + group
   elements.groupsContainer.querySelectorAll(".row-checkbox").forEach((cb) => {
-    cb.checked = true;
+    const row = cb.closest("[data-tab-id]");
+    cb.checked = row && selectedTabIds.has(Number(row.dataset.tabId));
   });
+  for (const group of duplicateGroups) syncGroupCheckbox(group.key);
   updateStats();
   // เก็บ selection ไป background
   saveSelectionToBackground();

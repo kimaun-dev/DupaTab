@@ -145,6 +145,50 @@ test("compareByTime: older tab first when both inactive", () => {
   assert.strictEqual(utils.compareByTime(a, b), -1);
 });
 
+// ---------- chooseKeepTab ----------
+test("chooseKeepTab: prefers pinned tab", () => {
+  const tabs = [
+    { id: 1, pinned: false, active: false, lastAccessed: 100 },
+    { id: 2, pinned: true, active: false, lastAccessed: 50 },
+    { id: 3, pinned: false, active: false, lastAccessed: 200 },
+  ];
+  const keep = utils.chooseKeepTab(tabs);
+  assert.strictEqual(keep.id, 2);
+});
+
+test("chooseKeepTab: prefers active tab (not pinned)", () => {
+  const tabs = [
+    { id: 1, pinned: false, active: false, lastAccessed: 100 },
+    { id: 2, pinned: false, active: true, lastAccessed: 50 },
+    { id: 3, pinned: false, active: false, lastAccessed: 200 },
+  ];
+  const keep = utils.chooseKeepTab(tabs);
+  assert.strictEqual(keep.id, 2);
+});
+
+test("chooseKeepTab: falls back to oldest tab when no pinned/active", () => {
+  const tabs = [
+    { id: 1, pinned: false, active: false, lastAccessed: 300 },
+    { id: 2, pinned: false, active: false, lastAccessed: 100 },
+    { id: 3, pinned: false, active: false, lastAccessed: 200 },
+  ];
+  const keep = utils.chooseKeepTab(tabs);
+  // lastAccessed น้อยสุด = เปิดก่อน = tab 100 (id 2)
+  assert.strictEqual(keep.id, 2);
+});
+
+test("chooseKeepTab: single tab", () => {
+  const tabs = [
+    { id: 1, pinned: false, active: false, lastAccessed: 100 },
+  ];
+  const keep = utils.chooseKeepTab(tabs);
+  assert.strictEqual(keep.id, 1);
+});
+
+test("chooseKeepTab: empty array → undefined", () => {
+  assert.strictEqual(utils.chooseKeepTab([]), undefined);
+});
+
 // ---------- Summary ----------
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total\n`);
