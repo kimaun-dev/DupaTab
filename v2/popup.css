@@ -392,3 +392,79 @@ h1 {
 .brand-tab {
   color: #1677f2;
 }
+
+.hidden,
+[hidden] {
+  display: none !important;
+}
+
+/* V2 DOM alignment */
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.group-heading h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-row {
+  grid-template-columns: 24px 18px minmax(0, 1fr) auto;
+}
+
+.row-checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #1a73e8;
+}
+
+.favicon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.tab-meta {
+  display: block;
+  min-width: 0;
+  margin: 0;
+}
+
+.tab-title,
+.tab-url {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-url {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #68707c;
+}
+
+.tab-close {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #cfd5dd;
+  border-radius: 7px;
+  font-size: 10px;
+  color: #2f3742;
+  background: #ffffff;
+}
+
+.tab-close:hover {
+  background: #f2f4f7;
+}

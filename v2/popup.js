@@ -34,8 +34,10 @@ const elements = {
 
 // ---------- State ----------
 let duplicateGroups = []; // ผลจาก findDuplicates
+let totalTabCount = 0; // จำนวนแท็บทั้งหมดใน Chrome
 let selectedTabIds = new Set(); // tab.id ที่ผู้ใช้เลือก
-let pendingAction = null; // action ที่รอ confirm ("close" | "selectAll" | "clear" | null)
+let selectionRestored = false; // true เมื่อโหลด/กำหนด selection ครั้งแรกแล้ว
+let pendingAction = null; // callback ที่รอ confirm
 
 // ---------- Helpers ----------
 /** ส่ง message ไป background (Promise-based) */
@@ -54,25 +56,16 @@ function sendToBackground(message) {
 /** แสดง message ใน status bar */
 function setStatus(text, type = "info") {
   elements.statusMessage.textContent = text;
-  elements.statusMessage.className = `status-message ${type}`;
+  elements.statusMessage.className = `status ${type}`;
 }
 
 /** อัปเดตตัวเลขสถิติ */
 function updateStats() {
-  if (!duplicateGroups.length) {
-    elements.totalTabs.textContent = "0";
-    elements.duplicateGroups.textContent = "0";
-    elements.duplicateTabs.textContent = "0";
-    elements.selectedTabs.textContent = "0";
-  } else {
-    const totalDup = duplicateGroups.reduce((sum, g) => sum + (g.tabs.length - 1), 0);
-    elements.totalTabs.textContent = String(totalDup);
-    elements.duplicateGroups.textContent = String(duplicateGroups.length);
-    elements.duplicateTabs.textContent = String(
-      duplicateGroups.reduce((sum, g) => sum + g.tabs.length, 0)
-    );
-    elements.selectedTabs.textContent = String(selectedTabIds.size);
-  }
+  const totalDup = duplicateGroups.reduce((sum, g) => sum + (g.tabs.length - 1), 0);
+  elements.totalTabs.textContent = String(totalTabCount);
+  elements.duplicateGroups.textContent = String(duplicateGroups.length);
+  elements.duplicateTabs.textContent = String(totalDup);
+  elements.selectedTabs.textContent = String(selectedTabIds.size);
   elements.closeSelectedButton.disabled = selectedTabIds.size === 0;
   elements.closeSelectedButton.textContent = `Close Selected Tabs (${selectedTabIds.size})`;
 }
@@ -163,12 +156,14 @@ function buildGroup(group) {
     rowCheckbox.type = "checkbox";
     rowCheckbox.className = "row-checkbox";
     rowCheckbox.value = String(tab.id);
-    rowCheckbox.checked = !isKeepTab; // keep tab ไม่ถูกเลือกโดย default
+    const shouldSelect = selectionRestored ? selectedTabIds.has(tab.id) : !isKeepTab;
+    rowCheckbox.checked = shouldSelect;
     rowCheckbox.setAttribute("aria-label", `Select tab: ${tab.title}`);
 
-    // เก็บ selection: เลือกทุกแท็บยกเว้น keep tab
-    if (!isKeepTab) selectedTabIds.add(tab.id);
-    else selectedTabIds.delete(tab.id);
+    if (!selectionRestored) {
+      if (shouldSelect) selectedTabIds.add(tab.id);
+      else selectedTabIds.delete(tab.id);
+    }
 
     const favicon = document.createElement("img");
     favicon.className = "favicon";
@@ -204,25 +199,39 @@ function buildGroup(group) {
  */
 function renderGroups() {
   elements.groupsContainer.innerHTML = "";
-  selectedTabIds.clear(); // รีเซ็ต selection ทุกครั้งที่ render ใหม่
+
+  const validTabIds = new Set(duplicateGroups.flatMap((g) => g.tabs.map((t) => t.id)));
+  if (selectionRestored) {
+    for (const id of [...selectedTabIds]) {
+      if (!validTabIds.has(id)) selectedTabIds.delete(id);
+    }
+  } else {
+    selectedTabIds.clear();
+  }
 
   if (!duplicateGroups.length) {
-    elements.emptyState.classList.remove("hidden");
-    elements.globalControls.classList.add("hidden");
-    elements.closeBar.classList.add("hidden");
+    elements.emptyState.hidden = false;
+    elements.globalControls.hidden = true;
+    elements.closeBar.hidden = true;
+    selectionRestored = true;
+    updateStats();
+    saveSelectionToBackground();
     return;
   }
 
-  elements.emptyState.classList.add("hidden");
-  elements.globalControls.classList.remove("hidden");
-  elements.closeBar.classList.remove("hidden");
+  elements.emptyState.hidden = true;
+  elements.globalControls.hidden = false;
+  elements.closeBar.hidden = false;
 
   for (const group of duplicateGroups) {
     elements.groupsContainer.append(buildGroup(group));
   }
 
   bindGroupEvents();
+  for (const group of duplicateGroups) syncGroupCheckbox(group.key);
+  selectionRestored = true;
   updateStats();
+  saveSelectionToBackground();
 }
 
 /**
@@ -246,6 +255,7 @@ function bindGroupEvents() {
           rowCb.checked = e.target.checked;
         });
       updateStats();
+      saveSelectionToBackground();
     });
   });
 
@@ -259,6 +269,7 @@ function bindGroupEvents() {
       const groupId = e.target.closest("[data-group-id]").dataset.groupId;
       syncGroupCheckbox(groupId);
       updateStats();
+      saveSelectionToBackground();
     });
   });
 
@@ -287,19 +298,39 @@ function findTabById(tabId) {
  * @param {chrome.tabs.Tab} tab
  */
 function closeTab(tab) {
-  // ส่งไปปิดที่ background (background ไม่ปิดตาม popup)
-  sendToBackground({ type: "CLOSE_TABS", ids: [tab.id] })
-    .then(() => {
-      // เก็บ log
-      addCloseLog(tab);
-      // อัปเดต list (เอา tab ออก)
-      refreshFromTabs();
-      // อัปเดต badge
-      sendToBackground({ type: "REFRESH_BADGE" }).catch(() => {});
-    })
-    .catch((err) => {
-      setStatus(`Failed to close tab: ${err.message}`, "error");
-    });
+  openDialog(
+    "Close this tab?",
+    `This will close \"${tab.title || tab.url}\". You cannot undo this.`,
+    "Close tab",
+    "danger",
+    () => {
+      sendToBackground({ type: "CLOSE_TABS", ids: [tab.id] })
+        .then(async (result) => {
+          const closed = result?.closed || 0;
+          const skipped = result?.skipped || 0;
+          const failed = result?.failed || 0;
+
+          if (closed === 1) {
+            addCloseLog(tab);
+            selectedTabIds.delete(tab.id);
+          }
+
+          await refreshFromTabs();
+
+          if (failed > 0) {
+            const detail = result?.errors?.[0]?.error ? `: ${result.errors[0].error}` : "";
+            setStatus(`0 closed, ${skipped} already gone, ${failed} failed${detail}`, "error");
+          } else if (skipped > 0) {
+            setStatus(`0 closed, ${skipped} already gone`, "info");
+          } else if (closed === 1) {
+            setStatus("1 tab closed", "success");
+          }
+        })
+        .catch((err) => {
+          setStatus(`Failed to close tab: ${err.message}`, "error");
+        });
+    }
+  );
 }
 
 /**
@@ -325,15 +356,32 @@ function addCloseLog(tab) {
  * อ่านแท็บทั้งหมด + คำนวณซ้ำ + render
  * ใช้เมื่อ refresh หรือหลัง close
  */
+async function restoreSelectionFromBackground() {
+  try {
+    const response = await sendToBackground({ type: "GET_SELECTED_GROUPS" });
+    if (response?.exists) {
+      const ids = Object.values(response.groups || {}).flat();
+      selectedTabIds = new Set(ids);
+      selectionRestored = true;
+    }
+  } catch {
+    // ถ้า restore ไม่ได้ ให้ใช้ default selection อย่างปลอดภัย
+  }
+}
+
 function refreshFromTabs() {
-  chrome.tabs
+  setStatus("", "info");
+  return chrome.tabs
     .query({})
     .then((tabs) => {
+      totalTabCount = tabs.length;
       duplicateGroups = findDuplicates(tabs);
       renderGroups();
+      return tabs;
     })
     .catch((err) => {
       setStatus(`Failed to load tabs: ${err.message}`, "error");
+      throw err;
     });
 }
 
@@ -418,14 +466,23 @@ function closeSelected() {
     `Close ${count} tab${count > 1 ? "s" : ""}`,
     "danger",
     () => {
-      // ส่ง ids ไปปิดที่ background (background ไม่ปิดตาม popup)
       const ids = Array.from(selectedTabIds);
       sendToBackground({ type: "CLOSE_TABS", ids })
-        .then(() => {
-          selectedTabIds.clear();
+        .then(async (result) => {
+          const closed = result?.closed || 0;
+          const skipped = result?.skipped || 0;
+          const failed = result?.failed || 0;
+          for (const id of ids) selectedTabIds.delete(id);
           saveSelectionToBackground();
-          refreshFromTabs();
-          setStatus(`${count} tab${count > 1 ? "s" : ""} closed`, "success");
+          await refreshFromTabs();
+          if (failed > 0) {
+            const detail = result?.errors?.[0]?.error ? `: ${result.errors[0].error}` : "";
+            setStatus(`${closed} closed, ${skipped} already gone, ${failed} failed${detail}`, "error");
+          } else if (skipped > 0) {
+            setStatus(`${closed} closed, ${skipped} already gone`, "info");
+          } else if (closed > 0) {
+            setStatus(`${closed} tab${closed === 1 ? "" : "s"} closed`, "success");
+          }
         })
         .catch((err) => setStatus(`Failed: ${err.message}`, "error"));
     }
@@ -434,6 +491,7 @@ function closeSelected() {
 
 // ---------- Event listeners (global buttons) ----------
 elements.refreshButton.addEventListener("click", () => {
+  setStatus("");
   refreshFromTabs();
   sendToBackground({ type: "REFRESH_BADGE" }).catch(() => {});
 });
@@ -464,6 +522,7 @@ elements.confirmDialog.addEventListener("close", () => {
 });
 
 // ---------- Init ----------
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  await restoreSelectionFromBackground();
   refreshFromTabs();
 });

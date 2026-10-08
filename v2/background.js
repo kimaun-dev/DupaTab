@@ -10,7 +10,9 @@
  */
 
 const BADGE_COLOR = "#4f46e5";
-const BADGE_COLOR_EMPTY = "transparent";
+
+// ใช้ duplicate-detection logic ชุดเดียวกับ popup เพื่อให้ผลตรงกัน
+importScripts("utils/utils.js");
 
 /**
  * อัปเดต badge บนไอคอน
@@ -21,8 +23,8 @@ async function updateBadge(count) {
     await chrome.action.setBadgeText({ text: String(count) });
     await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
   } else {
+    // ล้างข้อความ badge อย่างเดียว ไม่ส่งสี "transparent" เพราะ Chrome บางเวอร์ชัน parse ไม่ได้
     await chrome.action.setBadgeText({ text: "" });
-    await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR_EMPTY });
   }
 }
 
@@ -48,36 +50,6 @@ async function countSelectedTabs() {
 }
 
 /**
- * คำนวณแท็บซ้ำจากแท็บทั้งหมด
- * (คัดลอก logic เดิมจาก popup.js มาใช้ — ทำเหมือนเดิมเป๊ะ)
- * @param {chrome.tabs.Tab[]} allTabs
- * @returns {object[]} กลุ่มแท็บซ้ำ
- */
-function findDuplicates(allTabs) {
-  const urlMap = {};
-  for (const tab of allTabs) {
-    if (!tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("chrome-extension://")) {
-      continue;
-    }
-    // ใช้ origin + pathname เป็น key (ตัด query/hash ออก)
-    try {
-      const parsed = new URL(tab.url);
-      const key = parsed.origin + parsed.pathname;
-      if (!urlMap[key]) urlMap[key] = [];
-      urlMap[key].push(tab);
-    } catch {
-      // URL ที่ parse ไม่ได้ (เช่น about:blank) → ข้าม
-    }
-  }
-  return Object.values(urlMap)
-    .filter((group) => group.length > 1)
-    .map((group) => ({
-      key: group[0].url,
-      tabs: group,
-    }));
-}
-
-/**
  * อัปเดต badge จากแท็บทั้งหมด (เรียกเมื่อแท็บเปลี่ยน)
  */
 async function refreshBadge() {
@@ -99,6 +71,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true; // async
     }
 
+    case "GET_SELECTED_GROUPS": {
+      chrome.storage.session.get("selectedGroups").then((data) => {
+        sendResponse({
+          exists: Object.prototype.hasOwnProperty.call(data, "selectedGroups"),
+          groups: data.selectedGroups || {},
+        });
+      });
+      return true; // async
+    }
+
     case "SET_SELECTED_GROUPS": {
       chrome.storage.session
         .set({ selectedGroups: message.groups })
@@ -110,23 +92,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     case "CLOSE_TABS": {
-      const ids = Array.isArray(message.ids) ? message.ids : [];
+      const ids = Array.isArray(message.ids)
+        ? [...new Set(message.ids.filter((id) => Number.isInteger(id)))]
+        : [];
       if (!ids.length) {
-        sendResponse({ closed: 0 });
+        sendResponse({ closed: 0, skipped: 0, failed: 0, requested: 0 });
         return false;
       }
-      // ปิดทีละแท็บ แล้วนับจำนวนที่ปิดสำเร็จ
-      let closed = 0;
-      for (const id of ids) {
-        try {
-          chrome.tabs.remove(id);
-          closed += 1;
-        } catch (err) {
-          console.warn("ปิด tab", id, "ไม่สำเร็จ:", err);
-        }
-      }
-      sendResponse({ closed });
-      return false; // sync (tabs.remove เป็น async แต่ไม่ต้องรอ)
+
+      Promise.all(
+        ids.map(async (id) => {
+          try {
+            await chrome.tabs.get(id);
+          } catch {
+            return { id, status: "missing" };
+          }
+
+          const removeError = await new Promise((resolve) => {
+            chrome.tabs.remove(id, () => {
+              // อ่าน lastError ภายใน callback เพื่อไม่ให้ Chrome พ่น unchecked error
+              resolve(chrome.runtime.lastError?.message || "");
+            });
+          });
+
+          // ถ้า Chrome ไม่รายงาน error ให้ถือว่าคำสั่งปิดสำเร็จ
+          // ไม่ต้องรีบตรวจ chrome.tabs.get() ทันที เพราะ tab removal อาจ finalize ช้ากว่า callback
+          if (!removeError) {
+            return { id, status: "closed" };
+          }
+
+          // ถ้ามี error ให้ตรวจสถานะจริงซ้ำหลายรอบ เผื่อ Chrome ปิดแท็บสำเร็จแต่ callback รายงานช้า/คลาดเคลื่อน
+          for (let attempt = 0; attempt < 5; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            try {
+              await chrome.tabs.get(id);
+            } catch {
+              return { id, status: "closed" };
+            }
+          }
+
+          return {
+            id,
+            status: "failed",
+            error: removeError || "Tab is still open after close request",
+          };
+        })
+      )
+        .then(async (results) => {
+          const closed = results.filter((r) => r.status === "closed").length;
+          const skipped = results.filter((r) => r.status === "missing").length;
+          const failures = results.filter((r) => r.status === "failed");
+          await refreshBadge();
+          sendResponse({
+            closed,
+            skipped,
+            failed: failures.length,
+            requested: ids.length,
+            errors: failures.map((r) => ({ id: r.id, error: r.error })),
+          });
+        })
+        .catch((err) => {
+          console.warn("ปิดแท็บไม่สำเร็จ:", err);
+          sendResponse({ closed: 0, skipped: 0, failed: ids.length, requested: ids.length });
+        });
+      return true; // async
     }
 
     case "REFRESH_BADGE": {

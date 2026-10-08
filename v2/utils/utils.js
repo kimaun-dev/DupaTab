@@ -6,18 +6,22 @@
  */
 
 /**
- * คำนวณ key ของ URL (origin + pathname) ใช้จับคู่แท็บซ้ำ
+ * คำนวณ key ของ URL แบบเต็ม ใช้จับคู่แท็บซ้ำอย่างปลอดภัย
  * @param {string} url
  * @returns {string|null} key หรือ null ถ้า parse ไม่ได้
  */
 function urlKey(url) {
   if (!url) return null;
-  if (url.startsWith("chrome://") || url.startsWith("chrome-extension://")) {
+  if (
+    url.startsWith("chrome://") ||
+    url.startsWith("chrome-extension://") ||
+    url.startsWith("about:")
+  ) {
     return null;
   }
   try {
     const parsed = new URL(url);
-    return parsed.origin + parsed.pathname;
+    return parsed.href;
   } catch {
     return null;
   }
@@ -31,6 +35,8 @@ function urlKey(url) {
 function findDuplicates(allTabs) {
   const urlMap = {};
   for (const tab of allTabs) {
+    // ปล่อยทั้งแท็บที่ไม่มี url หรือ status ไม่เป็น "complete"
+    if (!tab.url || tab.status !== "complete") continue;
     const key = urlKey(tab.url);
     if (!key) continue;
     if (!urlMap[key]) urlMap[key] = [];
