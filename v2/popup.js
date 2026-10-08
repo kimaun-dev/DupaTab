@@ -2,7 +2,7 @@
  * DupaTab - popup.js (V.2)
  *
  * หน้าที่หลัก:
- *  - อ่านแท็บทั้งหมด → หาซ้ำ (ใช้ utils.findDuplicates)
+ *  - อ่านแท็บทั้งหมด → หาซ้ำ (ใช้ findDuplicates จาก utils.js)
  *  - แสดง UI ให้ผู้ใช้เลือกแท็บที่จะปิด
  *  - ส่ง message ไป background เพื่ออัปเดต badge
  *  - เก็บ "การเลือก" ไว้ใน chrome.storage.session (ผ่าน background)
@@ -33,7 +33,7 @@ const elements = {
 };
 
 // ---------- State ----------
-let duplicateGroups = []; // ผลจาก utils.findDuplicates
+let duplicateGroups = []; // ผลจาก findDuplicates
 let selectedTabIds = new Set(); // tab.id ที่ผู้ใช้เลือก
 let pendingAction = null; // action ที่รอ confirm ("close" | "selectAll" | "clear" | null)
 
@@ -315,7 +315,7 @@ function refreshFromTabs() {
   chrome.tabs
     .query({})
     .then((tabs) => {
-      duplicateGroups = utils.findDuplicates(tabs);
+      duplicateGroups = findDuplicates(tabs);
       renderGroups();
     })
     .catch((err) => {
