@@ -285,8 +285,8 @@ function findTabById(tabId) {
  * @param {chrome.tabs.Tab} tab
  */
 function closeTab(tab) {
-  chrome.tabs
-    .remove(tab.id)
+  // ส่งไปปิดที่ background (background ไม่ปิดตาม popup)
+  sendToBackground({ type: "CLOSE_TABS", ids: [tab.id] })
     .then(() => {
       // เก็บ log
       addCloseLog(tab);
@@ -414,15 +414,12 @@ function closeSelected() {
     `Close ${count} tab${count > 1 ? "s" : ""}`,
     "danger",
     () => {
-      // ปิดทุก tab ที่เลือก
-      Promise.allSettled(
-        Array.from(selectedTabIds).map((id) => {
-          const tab = findTabById(id);
-          return tab ? chrome.tabs.remove(id) : Promise.resolve();
-        })
-      )
+      // ส่ง ids ไปปิดที่ background (background ไม่ปิดตาม popup)
+      const ids = Array.from(selectedTabIds);
+      sendToBackground({ type: "CLOSE_TABS", ids })
         .then(() => {
           selectedTabIds.clear();
+          saveSelectionToBackground();
           refreshFromTabs();
           setStatus(`${count} tab${count > 1 ? "s" : ""} closed`, "success");
         })

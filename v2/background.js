@@ -109,6 +109,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true; // async
     }
 
+    case "CLOSE_TABS": {
+      const ids = Array.isArray(message.ids) ? message.ids : [];
+      if (!ids.length) {
+        sendResponse({ closed: 0 });
+        return false;
+      }
+      // ปิดทีละแท็บ แล้วนับจำนวนที่ปิดสำเร็จ
+      let closed = 0;
+      for (const id of ids) {
+        try {
+          chrome.tabs.remove(id);
+          closed += 1;
+        } catch (err) {
+          console.warn("ปิด tab", id, "ไม่สำเร็จ:", err);
+        }
+      }
+      sendResponse({ closed });
+      return false; // sync (tabs.remove เป็น async แต่ไม่ต้องรอ)
+    }
+
     case "REFRESH_BADGE": {
       refreshBadge().then(() => sendResponse({ ok: true }));
       return true; // async
