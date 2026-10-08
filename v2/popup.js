@@ -64,15 +64,17 @@ function updateStats() {
     elements.duplicateGroups.textContent = "0";
     elements.duplicateTabs.textContent = "0";
     elements.selectedTabs.textContent = "0";
-    return;
+  } else {
+    const totalDup = duplicateGroups.reduce((sum, g) => sum + (g.tabs.length - 1), 0);
+    elements.totalTabs.textContent = String(totalDup);
+    elements.duplicateGroups.textContent = String(duplicateGroups.length);
+    elements.duplicateTabs.textContent = String(
+      duplicateGroups.reduce((sum, g) => sum + g.tabs.length, 0)
+    );
+    elements.selectedTabs.textContent = String(selectedTabIds.size);
   }
-  const totalDup = duplicateGroups.reduce((sum, g) => sum + (g.tabs.length - 1), 0);
-  elements.totalTabs.textContent = String(totalDup);
-  elements.duplicateGroups.textContent = String(duplicateGroups.length);
-  elements.duplicateTabs.textContent = String(
-    duplicateGroups.reduce((sum, g) => sum + g.tabs.length, 0)
-  );
-  elements.selectedTabs.textContent = String(selectedTabIds.size);
+  elements.closeSelectedButton.disabled = selectedTabIds.size === 0;
+  elements.closeSelectedButton.textContent = `Close Selected Tabs (${selectedTabIds.size})`;
 }
 
 /**
